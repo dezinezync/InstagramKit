@@ -25,22 +25,101 @@
 
 - (instancetype)initWithInfo:(NSDictionary *)info
 {
-    self = [super initWithInfo:info];
-    if (self && IKNotNull(info)) {
-        _user = [[InstagramUser alloc] initWithInfo:info[kCreator]];
-        _text = [[NSString alloc] initWithString:info[kText]];
-        _createdDate = [[NSDate alloc] initWithTimeIntervalSince1970:[info[kCreatedDate] doubleValue]];
+    
+    if (self = [super initWithInfo:info]) {
+        
+        [self setAttributesFromDictionary:info];
+        
+//        _user = [[InstagramUser alloc] initWithInfo:info[kCreator]];
+//        _text = [[NSString alloc] initWithString:info[kText]];
+//        _createdDate = [[NSDate alloc] initWithTimeIntervalSince1970:[info[kCreatedDate] doubleValue]];
     }
     return self;
 }
 
-#pragma mark - Equality
++ (instancetype)instanceFromDictionary:(NSDictionary *)aDictionary
+{
+    
+    InstagramComment *instance = [[InstagramComment alloc] init];
+    [instance setAttributesFromDictionary:aDictionary];
+    
+    return instance;
+    
+}
 
-- (BOOL)isEqualToComment:(InstagramComment *)comment {
-    return [super isEqualToModel:comment];
+- (BOOL)isEqualToComment:(InstagramComment *)comment
+{
+    
+    return [self isEqual:comment];
+    
+}
+
+- (NSDictionary *)dictionaryRepresentation
+{
+    
+    NSMutableDictionary *dict = @{}.mutableCopy;
+    
+    if(self.user)
+    {
+        [dict setObject:[self.user dictionaryRepresentation] forKey:@"user"];
+    }
+    
+    if(self.text)
+    {
+        [dict setObject:self.text forKey:@"text"];
+    }
+    
+    if(self.createdDate)
+    {
+        [dict setObject:self.createdDate forKey:@"createdDate"];
+    }
+    
+    if(self.commentID)
+    {
+        [dict setObject:self.commentID forKey:@"id"];
+    }
+    
+    return dict.copy;
+    
 }
 
 #pragma mark - NSCoding
+
+- (void)setValue:(id)value forKey:(NSString *)key
+{
+    
+    if([key isEqualToString:@"createdDate"])
+    {
+        self.createdDate = [[NSDate alloc] initWithTimeIntervalSince1970:[value doubleValue]];
+    }
+    else
+    {
+        [super setValue:value forKey:key];
+    }
+    
+}
+
+- (void)setValue:(id)value forUndefinedKey:(NSString *)key
+{
+    
+    if([key isEqualToString:kCreator])
+    {
+        [self setValue:[InstagramUser instanceFromDictionary:value] forKey:@"user"];
+    }
+    else if ([key isEqualToString:kCreatedDate])
+    {
+        [self setValue:value forKey:@"createdDate"];
+    }
+    else if([key isEqualToString:@"id"])
+    {
+        [self setValue:value forKey:@"commentID"];
+    }
+    else
+    {
+        
+    }
+    
+}
 
 + (BOOL)supportsSecureCoding
 {

@@ -88,12 +88,23 @@ INSTAGRAMKIT_EXTERN NSString *const kLocationName;
  */
 - (instancetype)initWithInfo:(NSDictionary *)info NS_DESIGNATED_INITIALIZER;
 
++ (instancetype)instanceFromDictionary:(NSDictionary *)aDictionary;
+- (void)setAttributesFromDictionary:(NSDictionary *)aDictionary;
+
 /**
  *  Comparing Instagram model objects.
  *  @param model A model object.
  *  @return YES is Ids match. Else NO.
  */
 - (BOOL)isEqualToModel:(InstagramModel *)model;
+
+/**
+ *  A NSDictionary represenation of the Model object.
+ *  @discussion This method is to be implemented by the subclasses. The implementation on InstagramModel returns an empty dictionary to avoid crashes.
+ *
+ *  @return NSDictionary representation of the model.
+ */
+- (NSDictionary *)dictionaryRepresentation;
 
 @end
 

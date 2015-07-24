@@ -85,6 +85,29 @@ NSString *const kCursor = @"cursor";
 
 @implementation InstagramModel
 
++ (instancetype)instanceFromDictionary:(NSDictionary *)aDictionary
+{
+    
+    InstagramModel *instance = [[InstagramModel alloc] init];
+    
+    [instance setAttributesFromDictionary:aDictionary];
+    
+    return instance;
+    
+}
+
+- (void)setAttributesFromDictionary:(NSDictionary *)aDictionary
+{
+    
+    if (![aDictionary isKindOfClass:[NSDictionary class]]) {
+        return;
+    }
+    
+    [self setValuesForKeysWithDictionary:aDictionary];
+
+}
+
+#warning Call setAttributes from here instead?
 - (instancetype)initWithInfo:(NSDictionary *)info
 {
     self = [super init];
@@ -96,7 +119,78 @@ NSString *const kCursor = @"cursor";
     return self;
 }
 
+- (NSString *)description
+{
+    
+    NSString *description = [super description];
+    
+    return [description stringByAppendingFormat:@" %@", [self dictionaryRepresentation]];
+    
+}
+
 #pragma mark - Equality
+
+- (NSUInteger)hash
+{
+    
+    __block NSUInteger hash = 0;
+    
+    __block void(^hashizeCopy)(id obj);
+    
+    void(^hashize)(id obj) = [^void(id obj) {
+        
+        if([obj isKindOfClass:[NSArray class]])
+        {
+            
+            for(id innerObj in obj)
+            {
+                hashizeCopy(innerObj);
+            }
+            
+        }
+        else if([obj isKindOfClass:[NSDictionary class]])
+        {
+            
+            [(NSDictionary *)obj enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
+                
+                hashizeCopy(obj);
+                
+            }];
+            
+        }
+        else
+        {
+            hash += [obj hash];
+        }
+        
+    } copy];
+    
+    hashizeCopy = hashize;
+    
+    [[self dictionaryRepresentation] enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
+        
+        hashize(obj);
+        
+    }];
+    
+    return hash;
+    
+}
+
+- (BOOL)isEqual:(id)object
+{
+    
+    if(!object) return NO;
+    
+    if(![object isKindOfClass:[self class]]) return NO;
+    
+    if(object == self) return YES;
+    
+    return ([object hash] == [self hash]);
+    
+}
+
+#warning possibly needs deprecation as isEqual: seems more apt.
 
 - (BOOL)isEqualToModel:(InstagramModel *)model {
     
@@ -136,6 +230,16 @@ NSString *const kCursor = @"cursor";
     InstagramModel *copy = [[InstagramModel allocWithZone:zone] init];
     copy->_Id = [_Id copy];
     return copy;
+}
+
+#pragma mark - Convinience
+
+- (NSDictionary *)dictionaryRepresentation
+{
+    // to be implemented by subclasses.
+    
+    // return an empty dictionary to prevent crashes for subclasses that do no implement this method.
+    return @{};
 }
 
 @end

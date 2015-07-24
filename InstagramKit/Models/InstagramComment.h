@@ -24,6 +24,13 @@
 @class InstagramUser;
 
 @interface InstagramComment : InstagramModel <NSCopying, NSSecureCoding, NSObject>
+
++ (instancetype)instanceFromDictionary:(NSDictionary *)aDictionary;
+
+- (NSDictionary *)dictionaryRepresentation;
+
+@property (nonatomic, strong) NSNumber *commentID;
+
 /**
  *  Creation date.
  */

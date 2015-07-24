@@ -18,66 +18,27 @@
 //    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#import <Foundation/Foundation.h>
-
 #import "InstagramModel.h"
 
-@interface InstagramUser : InstagramModel <NSCopying, NSSecureCoding, NSObject>
+@interface InstagramUser : InstagramModel <NSSecureCoding, NSCopying>
 
-/**
- *  User's unique username.
- */
-@property (readonly) NSString* username;
+@property (nonatomic, copy) NSString *bio;
+@property (nonatomic, strong) InstagramUser *counts;
+@property (nonatomic, copy) NSNumber *followedBy;
+@property (nonatomic, copy) NSNumber *follows;
+@property (nonatomic, copy) NSString *fullName;
+@property (nonatomic, copy) NSString *instagramUserID;
+@property (nonatomic, copy) NSNumber *media;
+@property (nonatomic, copy) NSString *profilePicture;
+@property (nonatomic, copy) NSString *username;
+@property (nonatomic, copy) NSString *website;
 
-/**
- *  User's full name.
- */
-@property (readonly) NSString* fullName;
 
-/**
- *  Link to the User's profile picture.
- */
-@property (readonly) NSURL* profilePictureURL;
++ (InstagramUser *)instanceFromDictionary:(NSDictionary *)aDictionary;
+- (void)setAttributesFromDictionary:(NSDictionary *)aDictionary;
 
-/**
- *  User's short bio, if provided.
- */
-@property (readonly) NSString* bio;
+- (NSDictionary *)dictionaryRepresentation;
 
-/**
- *  User's website, if provided.
- */
-@property (readonly) NSURL* website;
-
-/**
- *  Number of Media uploaded by the User.
- *  This value is not persisted while saving the state of the User object.
- */
-@property (readonly) NSInteger mediaCount;
-
-/**
- *  Number of Instagram Users, this User follows.
- *  This value is not persisted while saving the state of the User object.
- */
-@property (readonly) NSInteger followsCount;
-
-/**
- *  Followers count of this User.
- *  This value is not persisted while saving the state of the User object.
- */
-@property (readonly) NSInteger followedByCount;
-
-/**
- *  Convenience method to update the details received for the User object.
- *  @param info JSON dictionary
- */
-- (void)updateDetails:(NSDictionary *)info;
-
-/**
- *  Comparing InstagramUser objects.
- *  @param user An InstagramUser object.
- *  @return     YES is Ids match. Else NO.
- */
-- (BOOL)isEqualToUser:(InstagramUser *)user;
+- (void)updateDetails:(NSDictionary *)aDict;
 
 @end

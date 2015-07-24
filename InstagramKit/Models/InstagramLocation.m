@@ -21,54 +21,101 @@
 #import "InstagramLocation.h"
 #import "InstagramModel.h"
 
+@interface InstagramLocation ()
+
+@property (nonatomic, assign, readwrite) CLLocationCoordinate2D coordinates;
+
+@end
+
 @implementation InstagramLocation
 
-- (id)initWithInfo:(NSDictionary *)info
+- (void)encodeWithCoder:(NSCoder *)encoder;
 {
-    self = [super initWithInfo:info];
-    if (self && IKNotNull(info)) {
+    [super encodeWithCoder:encoder];
+    [encoder encodeObject:self.locationID forKey:@"locationID"];
+    [encoder encodeObject:self.latitude forKey:@"latitude"];
+    [encoder encodeObject:self.longitude forKey:@"longitude"];
+    [encoder encodeObject:self.name forKey:@"name"];
+}
 
-        CLLocationCoordinate2D coordinates;
-        coordinates.latitude = [info[kLocationLatitude] doubleValue];
-        coordinates.longitude = [info[kLocationLongitude] doubleValue];
-        _coordinates = coordinates;
-        if (IKNotNull(info[kLocationName])) {
-            _name = [[NSString alloc] initWithString:info[kLocationName]];
-        }
+- (id)initWithCoder:(NSCoder *)decoder;
+{
+    if ((self = [super initWithCoder:decoder])) {
+        self.locationID = [decoder decodeObjectForKey:@"locationID"];
+        self.latitude = [decoder decodeObjectForKey:@"latitude"];
+        self.longitude = [decoder decodeObjectForKey:@"longitude"];
+        self.name = [decoder decodeObjectForKey:@"name"];
     }
     return self;
 }
 
-#pragma mark - Equality
-
-- (BOOL)isEqualToLocation:(InstagramLocation *)location {
-    return [super isEqualToModel:location];
++ (InstagramLocation *)instanceFromDictionary:(NSDictionary *)aDictionary;
+{
+    
+    InstagramLocation *instance = [[InstagramLocation alloc] init];
+    [instance setAttributesFromDictionary:aDictionary];
+    return instance;
+    
 }
 
-#pragma mark - NSCoding
-
-+ (BOOL)supportsSecureCoding
+- (void)setAttributesFromDictionary:(NSDictionary *)aDictionary;
 {
-    return YES;
-}
-
-- (id)initWithCoder:(NSCoder *)decoder
-{
-    if ((self = [self init])) {
-        CLLocationCoordinate2D coordinates;
-        coordinates.latitude = [decoder decodeDoubleForKey:kLocationLatitude];
-        coordinates.longitude = [decoder decodeDoubleForKey:kLocationLongitude];
-        _coordinates = coordinates;
-        _name = [decoder decodeObjectOfClass:[NSString class] forKey:kLocationName];
+    
+    if (![aDictionary isKindOfClass:[NSDictionary class]]) {
+        return;
     }
-    return self;
+    
+    [self setValuesForKeysWithDictionary:aDictionary];
+    
 }
 
-- (void)encodeWithCoder:(NSCoder *)encoder
+- (void)setValue:(id)value forUndefinedKey:(NSString *)key;
 {
-    [encoder encodeDouble:_coordinates.latitude forKey:kLocationLatitude];
-    [encoder encodeDouble:_coordinates.longitude forKey:kLocationLongitude];
-    [encoder encodeObject:_name forKey:kLocationName];
+    
+    if ([key isEqualToString:@"id"]) {
+        [self setValue:value forKey:@"locationID"];
+    } else {
+        [super setValue:value forUndefinedKey:key];
+    }
+    
+}
+
+- (NSDictionary *)dictionaryRepresentation;
+{
+    
+    NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+    
+    if (self.locationID) {
+        [dictionary setObject:self.locationID forKey:@"locationID"];
+    }
+    
+    if (self.latitude) {
+        [dictionary setObject:self.latitude forKey:@"latitude"];
+    }
+    
+    if (self.longitude) {
+        [dictionary setObject:self.longitude forKey:@"longitude"];
+    }
+    
+    if (self.name) {
+        [dictionary setObject:self.name forKey:@"name"];
+    }
+    
+    return dictionary;
+    
+}
+
+#pragma mark - Getter
+
+- (CLLocationCoordinate2D)coordinates
+{
+    
+    if(!CLLocationCoordinate2DIsValid(_coordinates)) {
+        _coordinates = (CLLocationCoordinate2D){[self.latitude doubleValue], [self.longitude doubleValue]};
+    }
+    
+    return _coordinates;
+    
 }
 
 #pragma mark - NSCopying
@@ -77,6 +124,8 @@
 {
     InstagramLocation *copy = [super copyWithZone:zone];
     copy->_coordinates = _coordinates;
+    copy->_latitude = _latitude;
+    copy->_longitude = _longitude;
     copy->_name = [_name copy];
     return copy;
 }

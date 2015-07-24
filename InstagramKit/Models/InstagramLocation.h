@@ -18,27 +18,23 @@
 //    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#import <Foundation/Foundation.h>
 #import "InstagramModel.h"
 #import <MapKit/MapKit.h>
 
-@interface InstagramLocation : InstagramModel <NSCopying, NSSecureCoding, NSObject>
+@interface InstagramLocation : InstagramModel <NSSecureCoding, NSCopying>
 
+@property (nonatomic, copy) NSString *locationID;
+@property (nonatomic, copy) NSNumber *latitude;
+@property (nonatomic, copy) NSNumber *longitude;
+@property (nonatomic, copy) NSString *name;
 /**
  *  Geographic coordinates if the Location.
  */
-@property (readonly) CLLocationCoordinate2D coordinates;
+@property (nonatomic, assign, readonly) CLLocationCoordinate2D coordinates;
 
-/**
- *  Location name as provided by the API.
- */
-@property (readonly) NSString *name;
++ (InstagramLocation *)instanceFromDictionary:(NSDictionary *)aDictionary;
+- (void)setAttributesFromDictionary:(NSDictionary *)aDictionary;
 
-/**
- *  Comparing InstagramLocation objects.
- *  @param location An InstagramLocation object.
- *  @return         YES is Ids match. Else NO.
- */
-- (BOOL)isEqualToLocation:(InstagramLocation *)location;
+- (NSDictionary *)dictionaryRepresentation;
 
 @end
