@@ -1,5 +1,5 @@
 //
-//    Copyright (c) 2013 Shyam Bhat
+//    Copyright (c) 2015 Shyam Bhat
 //
 //    Permission is hereby granted, free of charge, to any person obtaining a copy of
 //    this software and associated documentation files (the "Software"), to deal in
@@ -23,10 +23,27 @@
 
 @class InstagramUser;
 
-@interface InstagramComment : InstagramModel
-
+@interface InstagramComment : InstagramModel <NSCopying, NSSecureCoding, NSObject>
+/**
+ *  Creation date.
+ */
 @property (nonatomic, strong) NSDate *createdDate;
+
+/**
+ *  Creator of the comment.
+ */
 @property (nonatomic, strong) InstagramUser *user;
+
+/**
+ *  Comment text.
+ */
 @property (nonatomic, strong) NSString *text;
+
+/**
+ *  Comparing InstagramComment objects.
+ *  @param comment  An InstagramComment object.
+ *  @return         YES is Ids match. Else NO.
+ */
+- (BOOL)isEqualToComment:(InstagramComment *)comment;
 
 @end

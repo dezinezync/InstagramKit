@@ -18,26 +18,26 @@
 //    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#import "IKCell.h"
+#import "UIImageView+AFNetworking.h"
 
-#import <Foundation/Foundation.h>
+@interface IKCell ()
 
-@interface InstagramTag : NSObject <NSCopying, NSSecureCoding, NSObject>
+@property (weak, nonatomic) IBOutlet UIImageView *imageView;
 
-/**
- *  Tag name
- */
-@property (readonly) NSString* name;
+@end
 
-/**
- *  Number of Media tagged by this Tag.
- */
-@property (readonly) NSInteger mediaCount;
+@implementation IKCell
 
-/**
- *  Comparing InstagramTag objects.
- *  @param tag  An InstagramTag object.
- *  @return     YES is tag names match. Else NO.
- */
-- (BOOL)isEqualToTag:(InstagramTag *)tag;
+- (void)setImageUrl:(NSURL *)imageURL
+{
+    [self.imageView setImageWithURL:imageURL];
+}
+
+- (void)prepareForReuse
+{
+    [super prepareForReuse];
+    [self.imageView setImage:nil];
+}
 
 @end

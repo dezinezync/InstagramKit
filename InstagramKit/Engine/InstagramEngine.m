@@ -1,5 +1,5 @@
 //
-//    Copyright (c) 2013 Shyam Bhat
+//    Copyright (c) 2015 Shyam Bhat
 //
 //    Permission is hereby granted, free of charge, to any person obtaining a copy of
 //    this software and associated documentation files (the "Software"), to deal in
@@ -25,82 +25,25 @@
 #import "InstagramComment.h"
 #import "InstagramTag.h"
 #import "InstagramPaginationInfo.h"
-
-#define kKeyClientID @"client_id"
-#define kKeyAccessToken @"access_token"
-
-NSString *const kInstagramKitAppClientIdConfigurationKey = @"InstagramKitAppClientId";
-NSString *const kInstagramKitAppRedirectUrlConfigurationKey = @"InstagramKitAppRedirectURL";
-
-NSString *const kInstagramKitBaseUrlConfigurationKey = @"InstagramKitBaseUrl";
-NSString *const kInstagramKitAuthorizationUrlConfigurationKey = @"InstagramKitAuthorizationUrl";
-
-NSString *const kInstagramKitBaseUrlDefault = @"https://api.instagram.com/v1/";
-NSString *const kInstagramKitBaseUrl __deprecated = @"https://api.instagram.com/v1/";
-
-NSString *const kInstagramKitAuthorizationUrlDefault = @"https://api.instagram.com/oauth/authorize/";
-NSString *const kInstagramKitAuthorizationUrl __deprecated = @"https://api.instagram.com/oauth/authorize/";
-NSString *const kInstagramKitErrorDomain = @"InstagramKitErrorDomain";
-
-
-/* From the Documentation :
- 
- Relationships are expressed using the following terms:
- outgoing_status: Your relationship to the user. Can be "follows", "requested", "none".
- incoming_status: A user's relationship to you. Can be "followed_by", "requested_by", "blocked_by_you", "none".
- 
- */
-
-NSString *const kRelationshipOutgoingStatusKey = @"outgoing_status";
-NSString *const kRelationshipOutStatusFollows = @"follows";
-NSString *const kRelationshipOutStatusRequested = @"requested";
-NSString *const kRelationshipOutStatusNone = @"none";
-
-NSString *const kRelationshipIncomingStatusKey = @"incoming_status";
-NSString *const kRelationshipInStatusFollowedBy = @"followed_by";
-NSString *const kRelationshipInStatusRequestedBy = @"requested_by";
-NSString *const kRelationshipInStatusBlockedByYou = @"blocked_by_you";
-NSString *const kRelationshipInStatusNone = @"none";
-
-NSString *const kRelationshipUserIsPrivateKey = @"target_user_is_private";
-
-NSString *const kRelationshipActionKey = @"action";
-NSString *const kRelationshipActionFollow = @"follow";
-NSString *const kRelationshipActionUnfollow = @"unfollow";
-NSString *const kRelationshipActionBlock = @"block";
-NSString *const kRelationshipActionUnblock = @"unblock";
-NSString *const kRelationshipActionApprove = @"approve";
-NSString *const kRelationshipActionDeny = @"deny";
-
-
-#define kData @"data"
-#define kPagination @"pagination"
-
-
-typedef enum
-{
-    kPaginationMaxId,
-    kPaginationMaxLikeId,
-    kPaginationMaxTagId,
-} MaxIdKeyType;
+#import "InstagramLocation.h"
 
 @interface InstagramEngine()
 {
     dispatch_queue_t mBackgroundQueue;
 }
 
-+ (NSDictionary*) sharedEngineConfiguration;
-
-@property (nonatomic, copy) InstagramLoginBlock instagramLoginBlock;
-@property (nonatomic, strong) AFHTTPRequestOperationManager *operationManager;
+@property (nonatomic, strong) AFHTTPSessionManager *httpManager;
 
 @end
 
+
 @implementation InstagramEngine
+
 
 #pragma mark - Initializers -
 
-+ (InstagramEngine *)sharedEngine {
+
++ (instancetype)sharedEngine {
     static InstagramEngine *_sharedEngine = nil;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -109,123 +52,64 @@ typedef enum
     return _sharedEngine;
 }
 
-+ (NSDictionary*) sharedEngineConfiguration {
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"InstagramKit" withExtension:@"plist"];
-    NSDictionary *dict = [NSDictionary dictionaryWithContentsOfURL:url];
-    dict = dict ? dict : [[NSBundle mainBundle] infoDictionary];
-    return dict;
+
+- (NSDictionary*)clientConfiguration {
+
+    NSDictionary *info = [[NSBundle mainBundle] infoDictionary];
+    NSMutableDictionary *configuration = [NSMutableDictionary dictionary];
+    if (info[kInstagramAppClientIdConfigurationKey]) {
+        configuration[kInstagramAppClientIdConfigurationKey] = info[kInstagramAppClientIdConfigurationKey];
+    }
+    if (info[kInstagramAppRedirectURLConfigurationKey]) {
+        configuration[kInstagramAppRedirectURLConfigurationKey] = info[kInstagramAppRedirectURLConfigurationKey];
+    }
+    configuration[kInstagramKitBaseUrlConfigurationKey] = kInstagramKitBaseUrl;
+    configuration[kInstagramKitAuthorizationUrlConfigurationKey] = kInstagramKitAuthorizationUrl;
+    
+    return [NSDictionary dictionaryWithDictionary:configuration];
 }
 
-- (id)init {
+
+- (instancetype)init {
+    
     if (self = [super init])
     {
-        NSDictionary *sharedEngineConfiguration = [InstagramEngine sharedEngineConfiguration];
-        id url = nil;
-        url = sharedEngineConfiguration[kInstagramKitBaseUrlConfigurationKey];
-        
-        if (url) {
-            url = [NSURL URLWithString:url];
-        } else {
-            url = [NSURL URLWithString:kInstagramKitBaseUrlDefault];
-        }
-        
-        NSAssert(url, @"Base URL not valid: %@", sharedEngineConfiguration[kInstagramKitBaseUrlConfigurationKey]);
-        self.operationManager = [[AFHTTPRequestOperationManager alloc] initWithBaseURL:url];
+        NSURL *baseURL = [NSURL URLWithString:kInstagramKitBaseUrl];
+        self.httpManager = [[AFHTTPSessionManager alloc] initWithBaseURL:baseURL];
+        self.httpManager.responseSerializer = [[AFJSONResponseSerializer alloc] init];
 
-        self.appClientID =  sharedEngineConfiguration[kInstagramKitAppClientIdConfigurationKey];
-        self.appRedirectURL = sharedEngineConfiguration[kInstagramKitAppRedirectUrlConfigurationKey];
-
-        url = sharedEngineConfiguration[kInstagramKitAuthorizationUrlConfigurationKey];
-        self.authorizationURL = url ? url : kInstagramKitAuthorizationUrlDefault;
+        NSDictionary *configuration = [self clientConfiguration];
+        self.appClientID = configuration[kInstagramAppClientIdConfigurationKey];
+        self.appRedirectURL = configuration[kInstagramAppRedirectURLConfigurationKey];
 
         mBackgroundQueue = dispatch_queue_create("background", NULL);
 
-        self.operationManager.responseSerializer = [[AFJSONResponseSerializer alloc] init];
-
-        BOOL validClientId = IKNotNull(self.appClientID) && ![self.appClientID isEqualToString:@""] && ![self.appClientID isEqualToString:@"<Client Id here>"];
-        NSAssert(validClientId, @"Invalid Instagram Client ID.");
-        NSAssert([NSURL URLWithString:self.appRedirectURL], @"App Redirect URL invalid: %@", self.appRedirectURL);
-        NSAssert([NSURL URLWithString:self.authorizationURL], @"Authorization URL invalid: %@", self.authorizationURL);
+        NSAssert(IKNotNull(self.appClientID) && ![self.appClientID isEqualToString:@""] && ![self.appClientID isEqualToString:@"<Client Id here>"], @"Invalid Instagram Client ID. Please set a valid value for the key \"%@\" in Info.plist",kInstagramAppClientIdConfigurationKey);
+        
+        NSAssert(IKNotNull(self.appRedirectURL) && ![self.appRedirectURL isEqualToString:@""] && ![self.appRedirectURL isEqualToString:@"<Redirect URL here>"], @"Invalid Redirect URL. Please set a valid value for the key \"%@\" in Info.plist", kInstagramAppRedirectURLConfigurationKey);
+        
+        [self retrieveAccessToken];
     }
     return self;
 }
 
-#pragma mark - Login -
+
+#pragma mark - Authentication -
 
 
-- (void)loginWithBlock:(InstagramLoginBlock)block
+- (NSURL *)authorizarionURLForScope:(InstagramKitLoginScope)scope
 {
-    [self loginWithScope:IKLoginScopeBasic completionBlock:block];
+    NSDictionary *parameters = [self authorizationParametersWithScope:scope];
+    NSURLRequest *authRequest = (NSURLRequest *)[[AFHTTPRequestSerializer serializer] requestWithMethod:@"GET" URLString:kInstagramKitAuthorizationUrl parameters:parameters error:nil];
+    return authRequest.URL;
 }
 
-- (void)loginWithScope:(IKLoginScope)scope completionBlock:(InstagramLoginBlock)block
+
+- (BOOL)extractValidAccessTokenFromURL:(NSURL *)url
+                                 error:(NSError *__autoreleasing *)error
 {
-    NSMutableDictionary *params = [@{kKeyClientID: self.appClientID,
-                                     @"redirect_uri": self.appRedirectURL,
-                                     @"response_type": @"token"} mutableCopy];
-    
-    if(scope)
-    {
-        params[@"scope"] = [InstagramEngine stringForScope:scope];
-    }
-    
-    NSMutableArray *queryElements = [NSMutableArray arrayWithCapacity:params.count];
-    [params enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *value, BOOL *stop) {
-        [queryElements addObject:[NSString stringWithFormat:@"%@=%@", key, value]];
-    }];
-    
-    NSString *queryString = [queryElements componentsJoinedByString:@"&"];
-    
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@?%@",
-        self.authorizationURL, queryString]];
-    
-    self.instagramLoginBlock = block;
-
-    [[UIApplication sharedApplication] openURL:url];
-}
-
-+ (NSString *)stringForScope:(IKLoginScope)scope
-{
-    
-    NSArray *typeStrings = @[@"basic",@"comments",@"relationships",@"likes"];
-    NSMutableArray *strings = [NSMutableArray arrayWithCapacity:4];
-    
-#define kBitsUsedByIKLoginScope 4
-    
-    for (NSUInteger i=0; i < kBitsUsedByIKLoginScope; i++)
-    {
-        NSUInteger enumBitValueToCheck = 1 << i;
-        if (scope & enumBitValueToCheck)
-            [strings addObject:[typeStrings objectAtIndex:i]];
-    }
-    if (!strings.count) {
-        return @"basic";
-    }
-    
-    return [strings componentsJoinedByString:@"+"];
-    
-}
-
-- (void)cancelLogin
-{
-    if (self.instagramLoginBlock)
-    {
-        NSString *localizedDescription = NSLocalizedString(@"User canceled Instagram Login.", @"Error notification for Instagram Login cancelation.");
-        NSError *error = [NSError errorWithDomain:kInstagramKitErrorDomain code:kInstagramKitErrorCodeUserCancelled userInfo:@{
-                                                                                                                               NSLocalizedDescriptionKey: localizedDescription
-                                                                                                                               }];
-        self.instagramLoginBlock(error);
-    }
-}
-
-- (BOOL)application:(UIApplication *)application
-            openURL:(NSURL *)url
-  sourceApplication:(NSString *)sourceApplication
-         annotation:(id)annotation
-{
-
     NSURL *appRedirectURL = [NSURL URLWithString:self.appRedirectURL];
-
+    
     if (![appRedirectURL.scheme isEqual:url.scheme] || ![appRedirectURL.host isEqual:url.host])
     {
         return NO;
@@ -235,45 +119,91 @@ typedef enum
     if (accessToken)
     {
         self.accessToken = accessToken;
-        if (self.instagramLoginBlock) self.instagramLoginBlock(nil);
     }
-    else if (self.instagramLoginBlock)
+    else
     {
         NSString *localizedDescription = NSLocalizedString(@"Authorization not granted.", @"Error notification to indicate Instagram OAuth token was not provided.");
-        NSError *error = [NSError errorWithDomain:kInstagramKitErrorDomain code:kInstagramKitErrorCodeAccessNotGranted userInfo:@{
-            NSLocalizedDescriptionKey: localizedDescription
-        }];
-        self.instagramLoginBlock(error);
+        *error = [NSError errorWithDomain:InstagtamKitErrorDomain
+                                     code:InstagramKitAuthenticationFailedError
+                                 userInfo:@{NSLocalizedDescriptionKey: localizedDescription}];
     }
-    self.instagramLoginBlock = nil;
     return YES;
+
 }
 
-- (void)logout
+
+- (BOOL)isSessionValid
 {
-//    Clear all cookies so the next time the user wishes to switch accounts,
-//    they can do so
-    
+    return self.accessToken != nil;
+}
+
+
+- (void)logout
+{    
     NSHTTPCookie *cookie;
     NSHTTPCookieStorage *storage = [NSHTTPCookieStorage sharedHTTPCookieStorage];
     for (cookie in [storage cookies]) {
         [storage deleteCookie:cookie];
     }
     [[NSUserDefaults standardUserDefaults] synchronize];
-    
     self.accessToken = nil;
-    
-    NSLog(@"User is now logged out");
-    
-#ifdef DEBUG
-    
-    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Logged out" message:@"The user is now logged out. Proceed with dismissing the view. This message only appears in the debug environment." delegate:nil cancelButtonTitle:@"Okay" otherButtonTitles:nil, nil];
-    
-    [alert show];
-    
-#endif
-    
 }
+
+
+#pragma mark -
+
+
+- (void)setAccessToken:(NSString *)accessToken
+{
+    _accessToken = accessToken;
+    [self storeAccessToken];
+}
+
+- (void)storeAccessToken
+{
+    [[NSUserDefaults standardUserDefaults] setObject:self.accessToken forKey:@"com.instagramkit.token"];
+}
+
+- (void)retrieveAccessToken
+{
+    _accessToken = [[NSUserDefaults standardUserDefaults] objectForKey:@"com.instagramkit.token"];
+}
+
+#pragma mark -
+
+- (NSDictionary *)authorizationParametersWithScope:(InstagramKitLoginScope)scope
+{
+    NSDictionary *configuration = [self clientConfiguration];
+    NSString *scopeString = [self stringForScope:scope];
+    NSDictionary *parameters = @{
+                                 @"client_id": configuration[kInstagramAppClientIdConfigurationKey],
+                                 @"redirect_uri": configuration[kInstagramAppRedirectURLConfigurationKey],
+                                 @"response_type": @"token",
+                                 @"scope": scopeString
+                                };
+    return parameters;
+}
+
+
+- (NSString *)stringForScope:(InstagramKitLoginScope)scope
+{
+    NSArray *typeStrings = @[@"basic",@"comments",@"relationships",@"likes"];
+    NSMutableArray *strings = [NSMutableArray arrayWithCapacity:4];
+    
+    for (NSUInteger i=0; i < typeStrings.count; i++)
+    {
+        NSUInteger enumBitValueToCheck = 1 << i;
+        if (scope & enumBitValueToCheck)
+        {
+            [strings addObject:[typeStrings objectAtIndex:i]];
+        }
+    }
+    if (!strings.count) {
+        return @"basic";
+    }
+    return [strings componentsJoinedByString:@"+"];
+}
+
 
 -(NSDictionary*)queryStringParametersFromString:(NSString*)string {
 
@@ -312,9 +242,9 @@ typedef enum
     
     NSString *percentageEscapedPath = [path stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
 
-    [self.operationManager GET:percentageEscapedPath
+    [self.httpManager GET:percentageEscapedPath
         parameters:params
-           success:^(AFHTTPRequestOperation *operation, id responseObject) {
+           success:^(NSURLSessionDataTask *task, id responseObject) {
                NSDictionary *responseDictionary = (NSDictionary *)responseObject;
                NSDictionary *pInfo = responseDictionary[kPagination];
                InstagramPaginationInfo *paginationInfo = (pInfo)?[[InstagramPaginationInfo alloc] initWithInfo:pInfo andObjectType:modelClass]: nil;
@@ -330,7 +260,7 @@ typedef enum
                            }
                        }
                        dispatch_async(dispatch_get_main_queue(), ^{
-                           success(objects, paginationInfo);
+                           (success)? success(objects, paginationInfo) : 0;
                        });
                    });
                }
@@ -346,13 +276,14 @@ typedef enum
                            model = [[modelClass alloc] initWithInfo:responseDictionary[kData]];
                        }
                    }
-                   success(model, paginationInfo);
+                   (success)? success(model, paginationInfo) : 0;
                }
            }
-           failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-               failure(error,[[operation response] statusCode]);
+           failure:^(NSURLSessionDataTask *task, NSError *error) {
+               (failure)? failure(error, ((NSHTTPURLResponse *)[task response]).statusCode) : failure;
            }];
 }
+
 
 - (void)postPath:(NSString *)path
      parameters:(NSDictionary *)parameters
@@ -367,14 +298,14 @@ typedef enum
     else
         [params setObject:self.appClientID forKey:kKeyClientID];
     
-    [self.operationManager POST:path
+    [self.httpManager POST:path
                     parameters:params
-                       success:^(AFHTTPRequestOperation *operation, id responseObject) {
+                       success:^(NSURLSessionDataTask *task, id responseObject) {
                            NSDictionary *responseDictionary = (NSDictionary *)responseObject;
-                           success(responseDictionary);
+                           (success)? success(responseDictionary) : 0;
                        }
-                       failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-                           failure(error,[[operation response] statusCode]);
+                       failure:^(NSURLSessionDataTask *task, NSError *error) {
+                           (failure) ? failure(error,((NSHTTPURLResponse*)[task response]).statusCode) : 0;
                        }];
 }
 
@@ -391,36 +322,24 @@ typedef enum
     }
     else
         [params setObject:self.appClientID forKey:kKeyClientID];
-    [self.operationManager DELETE:path parameters:params success:^(AFHTTPRequestOperation *operation, id responseObject) {
-        if (success) {
-            success();
-        }
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        if (failure) {
-            failure(error,[[operation response] statusCode]);
-        }
-    }];
+    [self.httpManager DELETE:path
+                  parameters:params
+                     success:^(NSURLSessionDataTask *task, id responseObject) {
+                             (success)? success():0;
+                     }
+                     failure:^(NSURLSessionDataTask *task, NSError *error) {
+                         (failure) ? failure(error,((NSHTTPURLResponse*)[task response]).statusCode) : 0;
+                     }];
 }
 
-- (NSDictionary *)parametersFromCount:(NSInteger)count maxId:(NSString *)maxId andMaxIdType:(MaxIdKeyType)keyType
+
+- (NSDictionary *)parametersFromCount:(NSInteger)count maxId:(NSString *)maxId andPaginationKey:(NSString *)key
 {
     NSMutableDictionary *params = [[NSMutableDictionary alloc] initWithObjectsAndKeys:[NSString stringWithFormat:@"%ld",(long)count], kCount, nil];
     if (maxId) {
-        NSString *key = nil;
-        switch (keyType) {
-            case kPaginationMaxId:
-                key = kMaxId;
-                break;
-            case kPaginationMaxLikeId:
-                key = kMaxLikeId;
-                break;
-            case kPaginationMaxTagId:
-                key = kMaxTagId;
-                break;
-        }
         [params setObject:maxId forKey:key];
     }
-    return [NSDictionary dictionaryWithDictionary:params];
+    return params ? [NSDictionary dictionaryWithDictionary:params] : nil;
 }
 
 
@@ -428,39 +347,28 @@ typedef enum
 
 
 - (void)getMedia:(NSString *)mediaId
-     withSuccess:(void (^)(InstagramMedia *media))success
+     withSuccess:(InstagramMediaDetailBlock)success
          failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"media/%@",mediaId] parameters:nil responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			InstagramMedia *media = response;
-			success(media);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:[NSString stringWithFormat:@"media/%@",mediaId]
+       parameters:nil
+    responseModel:[InstagramMedia class]
+          success:^(id response, InstagramPaginationInfo *paginationInfo) {
+                InstagramMedia *media = response;
+                success(media);
+          }
+          failure:failure];
 }
 
 
 - (void)getPopularMediaWithSuccess:(InstagramMediaBlock)success
                            failure:(InstagramFailureBlock)failure
 {
-    [self getPath:@"media/popular" parameters:nil responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        NSArray *objects = response;
-        if(success)
-		{
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:@"media/popular"
+       parameters:nil
+    responseModel:[InstagramMedia class]
+          success:success
+          failure:failure];
 }
 
 
@@ -468,60 +376,102 @@ typedef enum
                withSuccess:(InstagramMediaBlock)success
                    failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"media/search?lat=%f&lng=%f",location.latitude,location.longitude] parameters:nil responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getMediaAtLocation:location
+                       count:0
+                       maxId:nil
+                 withSuccess:success
+                     failure:failure];
 }
 
 
-- (void)getMediaAtLocation:(CLLocationCoordinate2D)location count:(NSInteger)count maxId:(NSString *)maxId
+- (void)getMediaAtLocation:(CLLocationCoordinate2D)location
+                     count:(NSInteger)count
+                     maxId:(NSString *)maxId
                withSuccess:(InstagramMediaBlock)success
                    failure:(InstagramFailureBlock)failure
 {
-    NSDictionary *params = [self parametersFromCount:count maxId:maxId andMaxIdType:kPaginationMaxId];
-    [self getPath:[NSString stringWithFormat:@"media/search?lat=%f&lng=%f",location.latitude,location.longitude] parameters:params responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    NSDictionary *params = [self parametersFromCount:count maxId:maxId andPaginationKey:kPaginationKeyMaxId];
+    [self getPath:[NSString stringWithFormat:@"media/search?lat=%f&lng=%f",location.latitude,location.longitude]
+       parameters:params
+    responseModel:[InstagramMedia class]
+          success:success
+          failure:failure];
 }
+                         
+- (void)searchLocationsAtLocation:(CLLocationCoordinate2D)loction
+                       withSuccess:(InstagramLocationsBlock)success
+                           failure:(InstagramFailureBlock)failure
+{
+     [self getPath:[NSString stringWithFormat:@"locations/search?lat=%f&lng=%f", loction.latitude, loction.longitude]
+        parameters:nil
+     responseModel:[InstagramLocation class]
+           success:^(id response, InstagramPaginationInfo *paginationInfo)
+          {
+              NSArray *objects = response;
+              success(objects);
+          }
+           failure:failure];
+}
+
+
+- (void)searchLocationsAtLocation:(CLLocationCoordinate2D)loction
+                     distanceInMeters:(NSInteger)distance
+                     withSuccess:(InstagramLocationsBlock)success
+                     failure:(InstagramFailureBlock)failure
+{
+     [self getPath:[NSString stringWithFormat:@"locations/search?lat=%f&lng=%f&distance=%ld", loction.latitude, loction.longitude, (long)distance]
+        parameters:nil
+     responseModel:[InstagramLocation class]
+           success:^(id response, InstagramPaginationInfo *paginationInfo) {
+                     NSArray *objects = response;
+                     success(objects);
+                 }
+           failure:failure];
+}
+                         
+
+- (void)getLocationWithId:(NSString*)locationId
+                     withSuccess:(InstagramLocationBlock)success
+                     failure:(InstagramFailureBlock)failure
+ {
+     [self getPath:[NSString stringWithFormat:@"locations/%@", locationId]
+        parameters:nil
+     responseModel:[InstagramLocation class]
+           success:^(id response, InstagramPaginationInfo *paginationInfo) {
+                   success(response);
+                }
+           failure:failure];
+ }
+                         
+
+- (void)getMediaAtLocationWithId:(NSString*)locationId
+                     withSuccess:(InstagramMediaBlock)success
+                     failure:(InstagramFailureBlock)failure
+ {
+     [self getPath:[NSString stringWithFormat:@"locations/%@/media/recent", locationId] parameters:nil responseModel:[InstagramMedia class]
+           success:success
+           failure:failure];
+ }
 
 
 #pragma mark - Users -
 
 
-- (void)getUserDetails:(NSString *)userId
-           withSuccess:(void (^)(InstagramUser *userDetail))success
+- (void)getUserDetails:(InstagramUser *)user
+           withSuccess:(InstagramUserBlock)success
                failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/%@",userId]  parameters:nil responseModel:[InstagramUser class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			InstagramUser *userDetail = response;
-			success(userDetail);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:[NSString stringWithFormat:@"users/%@",user.Id]
+       parameters:nil
+    responseModel:[NSDictionary class]
+          success:^(id response, InstagramPaginationInfo *paginationInfo) {
+                if(IKNotNull(response))
+                {
+                    [user updateDetails:response];
+                    success(user);
+                }
+            }
+          failure:failure];
 }
 
 
@@ -529,254 +479,202 @@ typedef enum
             withSuccess:(InstagramMediaBlock)success
                 failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/%@/media/recent",userId] parameters:nil responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getMediaForUser:userId
+                    count:0
+                    maxId:nil
+              withSuccess:success
+                  failure:failure];
 }
 
 
-- (void)getMediaForUser:(NSString *)userId count:(NSInteger)count maxId:(NSString *)maxId
+- (void)getMediaForUser:(NSString *)userId
+                  count:(NSInteger)count
+                  maxId:(NSString *)maxId
             withSuccess:(InstagramMediaBlock)success
                 failure:(InstagramFailureBlock)failure
 {
-    NSDictionary *params = [self parametersFromCount:count maxId:maxId andMaxIdType:kPaginationMaxId];
-    [self getPath:[NSString stringWithFormat:@"users/%@/media/recent",userId] parameters:params responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    NSDictionary *params = [self parametersFromCount:count
+                                               maxId:maxId
+                                    andPaginationKey:kPaginationKeyMaxId];
+    [self getPath:[NSString stringWithFormat:@"users/%@/media/recent",userId]
+       parameters:params
+    responseModel:[InstagramMedia class]
+          success:success
+          failure:failure];
 }
 
 
-- (void)searchUsersWithString:(NSString *)string
-               withSuccess:(void (^)(NSArray *users, InstagramPaginationInfo *paginationInfo))success
-                   failure:(InstagramFailureBlock)failure
+- (void)searchUsersWithString:(NSString *)name
+                  withSuccess:(InstagramUsersBlock)success
+                      failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/search?q=%@",string] parameters:nil responseModel:[InstagramUser class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:[NSString stringWithFormat:@"users/search?q=%@",name]
+       parameters:nil
+    responseModel:[InstagramUser class]
+          success:success
+          failure:failure];
 }
 
 
 #pragma mark - Self -
 
 
-- (void)getSelfUserDetailsWithSuccess:(void (^)(InstagramUser *userDetail))success
-                             failure:(InstagramFailureBlock)failure
+- (void)getSelfUserDetailsWithSuccess:(InstagramUserBlock)success
+                              failure:(InstagramFailureBlock)failure
 {
-    [self getPath:@"users/self" parameters:nil responseModel:[InstagramUser class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        InstagramUser *userDetail = response;
-		if(success)
-		{
-			success(userDetail);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:@"users/self"
+       parameters:nil
+    responseModel:[InstagramUser class]
+          success:^(id response, InstagramPaginationInfo *paginationInfo) {
+              InstagramUser *userDetail = response;
+              success(userDetail);
+          }
+          failure:failure];
 }
 
 
 - (void)getSelfFeedWithSuccess:(InstagramMediaBlock)success
-            failure:(InstagramFailureBlock)failure
+                       failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/self/feed"] parameters:nil responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getSelfFeedWithCount:0
+                         maxId:nil
+                       success:success
+                       failure:failure];
 }
 
 
-- (void)getSelfFeedWithCount:(NSInteger)count maxId:(NSString *)maxId
+- (void)getSelfFeedWithCount:(NSInteger)count
+                       maxId:(NSString *)maxId
                      success:(InstagramMediaBlock)success
-                       failure:(InstagramFailureBlock)failure
+                     failure:(InstagramFailureBlock)failure
 {
-    NSDictionary *params = [self parametersFromCount:count maxId:maxId andMaxIdType:kPaginationMaxId];
-    [self getPath:[NSString stringWithFormat:@"users/self/feed"] parameters:params responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    NSDictionary *params = [self parametersFromCount:count maxId:maxId andPaginationKey:kPaginationKeyMaxId];
+    [self getPath:[NSString stringWithFormat:@"users/self/feed"]
+       parameters:params
+    responseModel:[InstagramMedia class]
+          success:success
+          failure:failure];
 }
 
 
 - (void)getMediaLikedBySelfWithSuccess:(InstagramMediaBlock)success
-                        failure:(InstagramFailureBlock)failure
+                               failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/self/media/liked"] parameters:nil responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getMediaLikedBySelfWithCount:0
+                                 maxId:nil
+                               success:success
+                               failure:failure];
 }
 
 
-- (void)getMediaLikedBySelfWithCount:(NSInteger)count maxId:(NSString *)maxId
+- (void)getMediaLikedBySelfWithCount:(NSInteger)count
+                               maxId:(NSString *)maxId
                              success:(InstagramMediaBlock)success
                              failure:(InstagramFailureBlock)failure
 {
-    NSDictionary *params = [self parametersFromCount:count maxId:maxId andMaxIdType:kPaginationMaxLikeId];
-    [self getPath:[NSString stringWithFormat:@"users/self/media/liked"] parameters:params responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    NSDictionary *params = [self parametersFromCount:count
+                                               maxId:maxId
+                                    andPaginationKey:kPaginationKeyMaxLikeId];
+    [self getPath:[NSString stringWithFormat:@"users/self/media/liked"]
+       parameters:params
+    responseModel:[InstagramMedia class]
+          success:success
+          failure:failure];
 }
 
+- (void)getSelfRecentMediaWithSuccess:(InstagramMediaBlock)success
+							  failure:(InstagramFailureBlock)failure
+{
+    [self getSelfRecentMediaWithCount:0
+                                maxId:nil
+                              success:success
+                              failure:failure];
+}
+
+
+- (void)getSelfRecentMediaWithCount:(NSInteger)count
+                              maxId:(NSString *)maxId
+                            success:(InstagramMediaBlock)success
+                            failure:(InstagramFailureBlock)failure
+{
+    NSDictionary *params = [self parametersFromCount:count
+                                               maxId:maxId
+                                    andPaginationKey:kPaginationKeyMaxId];
+	[self getPath:[NSString stringWithFormat:@"users/self/media/recent"]
+       parameters:params
+    responseModel:[InstagramMedia class]
+          success:success
+          failure:failure];
+}
 
 #pragma mark - Tags -
 
 
 - (void)getTagDetailsWithName:(NSString *)name
-                  withSuccess:(void (^)(InstagramTag *tag))success
+                  withSuccess:(InstagramTagBlock)success
                       failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"tags/%@",name] parameters:nil responseModel:[InstagramTag class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
+    [self getPath:[NSString stringWithFormat:@"tags/%@",name]
+       parameters:nil
+    responseModel:[InstagramTag class]
+          success:^(id response, InstagramPaginationInfo *paginationInfo) {
 			InstagramTag *tag = response;
 			success(tag);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    } failure:failure];
+}
+
+
+- (void)getMediaWithTagName:(NSString *)name
+                withSuccess:(InstagramMediaBlock)success
+                    failure:(InstagramFailureBlock)failure
+{
+    [self getMediaWithTagName:name
+                        count:0
+                        maxId:nil
+                  withSuccess:success
+                      failure:failure];
 }
 
 
 - (void)getMediaWithTagName:(NSString *)tag
+                      count:(NSInteger)count
+                      maxId:(NSString *)maxId
                 withSuccess:(InstagramMediaBlock)success
                     failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"tags/%@/media/recent",tag] parameters:nil responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
-}
-
-
-- (void)getMediaWithTagName:(NSString *)tag count:(NSInteger)count maxId:(NSString *)maxId
-                withSuccess:(InstagramMediaBlock)success
-                    failure:(InstagramFailureBlock)failure
-{
-    NSDictionary *params = [self parametersFromCount:count maxId:maxId andMaxIdType:kPaginationMaxTagId];
-    [self getPath:[NSString stringWithFormat:@"tags/%@/media/recent",tag] parameters:params responseModel:[InstagramMedia class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-		if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    NSDictionary *params = [self parametersFromCount:count maxId:maxId andPaginationKey:kPaginationKeyMaxTagId];
+    [self getPath:[NSString stringWithFormat:@"tags/%@/media/recent",tag]
+       parameters:params
+    responseModel:[InstagramMedia class]
+          success:success
+          failure:failure];
 }
 
 
 - (void)searchTagsWithName:(NSString *)name
-            withSuccess:(InstagramTagsBlock)success
-                failure:(InstagramFailureBlock)failure
-{
-    [self getPath:[NSString stringWithFormat:@"tags/search?q=%@",name] parameters:nil responseModel:[InstagramTag class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
-}
-
-
-- (void)searchTagsWithName:(NSString *)name count:(NSInteger)count maxId:(NSString *)maxId
                withSuccess:(InstagramTagsBlock)success
                    failure:(InstagramFailureBlock)failure
 {
-    NSDictionary *params = [self parametersFromCount:count maxId:maxId andMaxIdType:kPaginationMaxId];
-    [self getPath:[NSString stringWithFormat:@"tags/search?q=%@",name] parameters:params responseModel:[InstagramTag class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self searchTagsWithName:name
+                       count:0
+                       maxId:nil
+                 withSuccess:success
+                     failure:failure];
+}
+
+
+- (void)searchTagsWithName:(NSString *)name
+                     count:(NSInteger)count
+                     maxId:(NSString *)maxId
+               withSuccess:(InstagramTagsBlock)success
+                   failure:(InstagramFailureBlock)failure
+{
+    NSDictionary *params = [self parametersFromCount:count maxId:maxId andPaginationKey:kPaginationKeyMaxId];
+    [self getPath:[NSString stringWithFormat:@"tags/search?q=%@",name]
+       parameters:params
+    responseModel:[InstagramTag class]
+          success:success
+          failure:failure];
 }
 
 
@@ -787,59 +685,44 @@ typedef enum
                withSuccess:(InstagramCommentsBlock)success
                    failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"media/%@/comments",mediaId] parameters:nil responseModel:[InstagramComment class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:[NSString stringWithFormat:@"media/%@/comments",mediaId]
+       parameters:nil
+    responseModel:[InstagramComment class]
+          success:^(id response, InstagramPaginationInfo *paginationInfo) {
+              NSArray *objects = response;
+              success(objects);
+          }
+          failure:failure];
 }
 
 
 - (void)createComment:(NSString *)commentText
               onMedia:(NSString *)mediaId
-          withSuccess:(void (^)(void))success
+          withSuccess:(dispatch_block_t)success
               failure:(InstagramFailureBlock)failure
 {
-    // Please email apidevelopers@instagram.com for access.
-    NSDictionary *params = [NSDictionary dictionaryWithObjects:@[commentText] forKeys:@[kText]];
-    [self postPath:[NSString stringWithFormat:@"media/%@/comments",mediaId] parameters:params responseModel:nil success:^(NSDictionary *responseObject)
-    {
-        if(success)
-		{
-			success();
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    NSDictionary *params = [NSDictionary dictionaryWithObjects:@[commentText] forKeys:@[@"text"]];
+    [self postPath:[NSString stringWithFormat:@"media/%@/comments",mediaId]
+        parameters:params
+     responseModel:nil
+           success:^(NSDictionary *responseObject)
+            {
+                success();
+            }
+           failure:failure];
 }
 
 
 - (void)removeComment:(NSString *)commentId
               onMedia:(NSString *)mediaId
-          withSuccess:(void (^)(void))success
+          withSuccess:(dispatch_block_t)success
               failure:(InstagramFailureBlock)failure
 {
-    [self deletePath:[NSString stringWithFormat:@"media/%@/comments/%@",mediaId,commentId] parameters:nil responseModel:nil success:^{
-        if(success)
-		{
-			success();
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self deletePath:[NSString stringWithFormat:@"media/%@/comments/%@",mediaId,commentId]
+          parameters:nil
+       responseModel:nil
+             success:success
+             failure:failure];
 }
 
 
@@ -847,58 +730,42 @@ typedef enum
 
 
 - (void)getLikesOnMedia:(NSString *)mediaId
-            withSuccess:(void (^)(NSArray *likedUsers))success
+            withSuccess:(InstagramUsersBlock)success
                 failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"media/%@/likes",mediaId] parameters:nil responseModel:[InstagramUser class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:[NSString stringWithFormat:@"media/%@/likes",mediaId]
+       parameters:nil
+    responseModel:[InstagramUser class]
+          success:success
+          failure:failure];
 }
 
 
 - (void)likeMedia:(NSString *)mediaId
-      withSuccess:(void (^)(void))success
+      withSuccess:(dispatch_block_t)success
           failure:(InstagramFailureBlock)failure
 {
-    [self postPath:[NSString stringWithFormat:@"media/%@/likes",mediaId] parameters:nil responseModel:nil success:^(NSDictionary *responseObject)
-     {
-         if(success)
-         {
+    [self postPath:[NSString stringWithFormat:@"media/%@/likes",mediaId]
+        parameters:nil
+     responseModel:nil
+           success:^(NSDictionary *responseObject) {
              success();
-         }
-     } failure:^(NSError *error, NSInteger statusCode) {
-         if(failure)
-         {
-             failure(error);
-         }
-     }];
+           }
+           failure:failure];
 }
 
 
 - (void)unlikeMedia:(NSString *)mediaId
-        withSuccess:(void (^)(void))success
+        withSuccess:(dispatch_block_t)success
             failure:(InstagramFailureBlock)failure
 {
-    [self deletePath:[NSString stringWithFormat:@"media/%@/likes",mediaId] parameters:nil responseModel:nil success:^{
-        if(success)
-		{
-			success();
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self deletePath:[NSString stringWithFormat:@"media/%@/likes",mediaId]
+          parameters:nil
+       responseModel:nil
+             success:^{
+                 success();
+             }
+             failure:failure];
 }
 
 
@@ -906,8 +773,8 @@ typedef enum
 
 
 - (void)getRelationshipStatusOfUser:(NSString *)userId
-                          withSuccess:(void (^)(NSDictionary *responseDictionary))success
-                              failure:(void (^)(NSError* error))failure
+                        withSuccess:(InstagramResponseBlock)success
+                            failure:(InstagramFailureBlock)failure
 {
     [self getPath:[NSString stringWithFormat:@"users/%@/relationship",userId] parameters:nil responseModel:[NSDictionary class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
         if(success)
@@ -915,159 +782,100 @@ typedef enum
 			NSDictionary *responseDictionary = response;
 			success(responseDictionary);
 		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    } failure:failure];
 }
 
 
 - (void)getUsersFollowedByUser:(NSString *)userId
-                   withSuccess:(void (^)(NSArray *usersFollowed))success
-                       failure:(void (^)(NSError* error))failure
+                   withSuccess:(InstagramUsersBlock)success
+                       failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/%@/follows",userId] parameters:nil responseModel:[InstagramUser class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:[NSString stringWithFormat:@"users/%@/follows",userId]
+       parameters:nil
+    responseModel:[InstagramUser class]
+          success:success
+          failure:failure];
 }
 
 
 - (void)getFollowersOfUser:(NSString *)userId
-                   withSuccess:(void (^)(NSArray *followers))success
-                       failure:(void (^)(NSError* error))failure
+               withSuccess:(InstagramUsersBlock)success
+                   failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/%@/followed-by",userId] parameters:nil responseModel:[InstagramUser class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
+    [self getPath:[NSString stringWithFormat:@"users/%@/followed-by",userId]
+       parameters:nil
+    responseModel:[InstagramUser class]
+          success:success
+          failure:failure];
 }
 
 
-- (void)getFollowRequestsWithSuccess:(void (^)(NSArray *requestedUsers))success
-                   failure:(void (^)(NSError* error))failure
+- (void)getFollowRequestsWithSuccess:(InstagramUsersBlock)success
+                             failure:(InstagramFailureBlock)failure
 {
-    [self getPath:[NSString stringWithFormat:@"users/self/requested-by"] parameters:nil responseModel:[InstagramUser class] success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        if(success)
-		{
-			NSArray *objects = response;
-			success(objects);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-        if(failure)
-		{
-			failure(error);
-		}
-    }];
-    
+    [self getPath:[NSString stringWithFormat:@"users/self/requested-by"]
+       parameters:nil
+    responseModel:[InstagramUser class]
+          success:success
+          failure:failure];
 }
 
 
 - (void)followUser:(NSString *)userId
-       withSuccess:(void (^)(NSDictionary *response))success
-           failure:(void (^)(NSError* error))failure
+       withSuccess:(InstagramResponseBlock)success
+           failure:(InstagramFailureBlock)failure
 {
     NSDictionary *params = @{kRelationshipActionKey:kRelationshipActionFollow};
-    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId] parameters:params responseModel:nil success:^(NSDictionary *responseObject)
-    {
-        if(success)
-		{
-			success(responseObject);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-                if(failure)
-		{
-			failure(error);
-		}
-        NSLog(@"%@", [error description]);
-    }];
+    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId]
+        parameters:params
+     responseModel:nil
+           success:success
+           failure:failure];
 }
 
 
 - (void)unfollowUser:(NSString *)userId
-       withSuccess:(void (^)(NSDictionary *response))success
-           failure:(void (^)(NSError* error))failure
+         withSuccess:(InstagramResponseBlock)success
+             failure:(InstagramFailureBlock)failure
 {
     NSDictionary *params = @{kRelationshipActionKey:kRelationshipActionUnfollow};
-    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId] parameters:params responseModel:nil success:^(NSDictionary *responseObject)
-    {
-        if(success)
-		{
-			success(responseObject);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-                if(failure)
-		{
-			failure(error);
-		}
-        NSLog(@"%@", [error description]);
-    }];
+    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId]
+        parameters:params
+     responseModel:nil
+           success:success
+           failure:failure];
 }
 
 
 - (void)blockUser:(NSString *)userId
-       withSuccess:(void (^)(NSDictionary *response))success
-           failure:(void (^)(NSError* error))failure
+      withSuccess:(InstagramResponseBlock)success
+          failure:(InstagramFailureBlock)failure
 {
     NSDictionary *params = @{kRelationshipActionKey:kRelationshipActionBlock};
-    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId] parameters:params responseModel:nil success:^(NSDictionary *responseObject)
-    {
-        if(success)
-		{
-			success(responseObject);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-                if(failure)
-		{
-			failure(error);
-		}
-        NSLog(@"%@", [error description]);
-    }];
+    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId]
+        parameters:params
+     responseModel:nil
+           success:success
+           failure:failure];
 }
 
 
 - (void)unblockUser:(NSString *)userId
-         withSuccess:(void (^)(NSDictionary *response))success
-             failure:(void (^)(NSError* error))failure
+        withSuccess:(InstagramResponseBlock)success
+            failure:(InstagramFailureBlock)failure
 {
     NSDictionary *params = @{kRelationshipActionKey:kRelationshipActionUnblock};
-    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId] parameters:params responseModel:nil success:^(NSDictionary *responseObject)
-    {
-        if(success)
-		{
-			success(responseObject);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-                if(failure)
-		{
-			failure(error);
-		}
-        NSLog(@"%@", [error description]);
-    }];
+    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId]
+        parameters:params
+     responseModel:nil
+           success:success
+           failure:failure];
 }
 
 
 - (void)approveUser:(NSString *)userId
-      withSuccess:(void (^)(NSDictionary *response))success
-          failure:(void (^)(NSError* error))failure
+        withSuccess:(InstagramResponseBlock)success
+            failure:(InstagramFailureBlock)failure
 {
     NSDictionary *params = @{kRelationshipActionKey:kRelationshipActionApprove};
     [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId] parameters:params responseModel:nil success:^(NSDictionary *responseObject)
@@ -1079,30 +887,23 @@ typedef enum
     } failure:^(NSError *error, NSInteger statusCode) {
                 if(failure)
 		{
-			failure(error);
+			failure(error, statusCode);
 		}
         NSLog(@"%@", [error description]);
     }];
 }
 
 
-- (void)denyUser:(NSString *)userId
-        withSuccess:(void (^)(NSDictionary *response))success
-            failure:(void (^)(NSError* error))failure
+- (void)ignoreUser:(NSString *)userId
+     withSuccess:(InstagramResponseBlock)success
+         failure:(InstagramFailureBlock)failure
 {
-    NSDictionary *params = @{kRelationshipActionKey:kRelationshipActionDeny};
-    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId] parameters:params responseModel:nil success:^(NSDictionary *responseObject) {
-        if(success)
-		{
-			success(responseObject);
-		}
-    } failure:^(NSError *error, NSInteger statusCode) {
-                if(failure)
-		{
-			failure(error);
-		}
-        NSLog(@"%@", [error description]);
-    }];
+    NSDictionary *params = @{kRelationshipActionKey:kRelationshipActionIgnore};
+    [self postPath:[NSString stringWithFormat:@"users/%@/relationship",userId]
+        parameters:params
+     responseModel:nil
+           success:success
+           failure:failure];
 }
 
 
@@ -1110,26 +911,16 @@ typedef enum
 
 
 - (void)getPaginatedItemsForInfo:(InstagramPaginationInfo *)paginationInfo
-            withSuccess:(InstagramMediaBlock)success
-                failure:(InstagramFailureBlock)failure
+                     withSuccess:(InstagramObjectsBlock)success
+                         failure:(InstagramFailureBlock)failure
 {
-    NSString *relativePath = [[paginationInfo.nextURL absoluteString] stringByReplacingOccurrencesOfString:[self.operationManager.baseURL absoluteString] withString:@""];
-    [self getPath:relativePath parameters:nil responseModel:paginationInfo.type success:^(id response, InstagramPaginationInfo *paginationInfo) {
-        
-		if(success)
-		{
-			NSArray *objects = response;
-			success(objects, paginationInfo);
-		}
-		
-    } failure:^(NSError *error, NSInteger statusCode) {
-        
-		if(failure)
-		{
-			failure(error);
-		}
-		
-    }];
+    NSString *relativePath = [[paginationInfo.nextURL absoluteString] stringByReplacingOccurrencesOfString:[self.httpManager.baseURL absoluteString] withString:@""];
+    [self getPath:relativePath
+       parameters:nil
+    responseModel:paginationInfo.type
+          success:success
+          failure:failure];
 }
+
 
 @end

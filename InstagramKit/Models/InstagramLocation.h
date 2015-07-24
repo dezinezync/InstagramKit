@@ -18,26 +18,27 @@
 //    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
 #import <Foundation/Foundation.h>
+#import "InstagramModel.h"
+#import <MapKit/MapKit.h>
 
-@interface InstagramTag : NSObject <NSCopying, NSSecureCoding, NSObject>
-
-/**
- *  Tag name
- */
-@property (readonly) NSString* name;
+@interface InstagramLocation : InstagramModel <NSCopying, NSSecureCoding, NSObject>
 
 /**
- *  Number of Media tagged by this Tag.
+ *  Geographic coordinates if the Location.
  */
-@property (readonly) NSInteger mediaCount;
+@property (readonly) CLLocationCoordinate2D coordinates;
 
 /**
- *  Comparing InstagramTag objects.
- *  @param tag  An InstagramTag object.
- *  @return     YES is tag names match. Else NO.
+ *  Location name as provided by the API.
  */
-- (BOOL)isEqualToTag:(InstagramTag *)tag;
+@property (readonly) NSString *name;
+
+/**
+ *  Comparing InstagramLocation objects.
+ *  @param location An InstagramLocation object.
+ *  @return         YES is Ids match. Else NO.
+ */
+- (BOOL)isEqualToLocation:(InstagramLocation *)location;
 
 @end

@@ -1,5 +1,5 @@
 //
-//    Copyright (c) 2013 Shyam Bhat
+//    Copyright (c) 2015 Shyam Bhat
 //
 //    Permission is hereby granted, free of charge, to any person obtaining a copy of
 //    this software and associated documentation files (the "Software"), to deal in
@@ -21,65 +21,90 @@
 #import "InstagramUser.h"
 #import "InstagramEngine.h"
 
-@interface InstagramUser()
-@property (nonatomic, strong) NSArray *recentMedia;
-@end
-
 @implementation InstagramUser
 
-- (id)initWithInfo:(NSDictionary *)info
+- (instancetype)initWithInfo:(NSDictionary *)info
 {
     self = [super initWithInfo:info];
     if (self && IKNotNull(info)) {
-        _username = [[NSString alloc] initWithString:info[kUsername]];
-        _fullName = [[NSString alloc] initWithString:info[kFullName]];
-        _profilePictureURL = [[NSURL alloc] initWithString:info[kProfilePictureURL]];
-        if (IKNotNull(info[kBio]))
-            _bio = [[NSString alloc] initWithString:info[kBio]];;
-        if (IKNotNull(info[kWebsite]))
-            _website = [[NSURL alloc] initWithString:info[kWebsite]];
-
-        // DO NOT PERSIST
-        if (IKNotNull(info[kCounts]))
-        {
-            _mediaCount = [(info[kCounts])[kCountMedia] integerValue];
-            _followsCount = [(info[kCounts])[kCountFollows] integerValue];
-            _followedByCount = [(info[kCounts])[kCountFollowedBy] integerValue];
-        }
+        [self updateDetails:info];
     }
     return self;
 }
 
-- (void)loadCounts
+- (void)updateDetails:(NSDictionary *)info
 {
-    [self loadCountsWithSuccess:nil failure:nil];
+    _username = [[NSString alloc] initWithString:info[kUsername]];
+    _fullName = [[NSString alloc] initWithString:info[kFullName]];
+    
+    if (IKNotNull(info[kProfilePictureURL]))
+    {
+        _profilePictureURL = [[NSURL alloc] initWithString:info[kProfilePictureURL]];
+    }
+    
+    if (IKNotNull(info[kBio]))
+    {
+        _bio = [[NSString alloc] initWithString:info[kBio]];
+    }
+    
+    if (IKNotNull(info[kWebsite]))
+    {
+        _website = [[NSURL alloc] initWithString:info[kWebsite]];
+    }
+    
+    if (IKNotNull(info[kCounts]))
+    {
+        _mediaCount = [(info[kCounts])[kCountMedia] integerValue];
+        _followsCount = [(info[kCounts])[kCountFollows] integerValue];
+        _followedByCount = [(info[kCounts])[kCountFollowedBy] integerValue];
+    }
 }
 
-- (void)loadCountsWithSuccess:(void(^)(void))success failure:(void(^)(void))failure
-{
-    [[InstagramEngine sharedEngine] getUserDetails:self withSuccess:^(InstagramUser *userDetail) {
-        _mediaCount = userDetail.mediaCount;
-        _followsCount = userDetail.followsCount;
-        _followedByCount = userDetail.followedByCount;
-        success();
-    } failure:^(NSError *error) {
-        failure();
-    }];
+#pragma mark - Equality
+
+- (BOOL)isEqualToUser:(InstagramUser *)user {
+    return [super isEqualToModel:user];
 }
 
-- (void)loadRecentMedia:(NSInteger)count
+#pragma mark - NSCoding
+
++ (BOOL)supportsSecureCoding
 {
-    [self loadRecentMedia:count withSuccess:nil failure:nil];
+    return YES;
 }
 
-- (void)loadRecentMedia:(NSInteger)count withSuccess:(void(^)(void))success failure:(void(^)(void))failure
+- (id)initWithCoder:(NSCoder *)decoder
 {
-    [[InstagramEngine sharedEngine] getMediaForUser:self.Id withSuccess:^(NSArray *media, InstagramPaginationInfo *paginationInfo) {
-        self.recentMedia = media;
-        success();
-    } failure:^(NSError *error) {
-        failure();
-    }];
+    if ((self = [self init])) {
+        _username = [decoder decodeObjectOfClass:[NSString class] forKey:kUsername];
+        _fullName = [decoder decodeObjectOfClass:[NSString class] forKey:kFullName];
+        _profilePictureURL = [decoder decodeObjectOfClass:[NSString class] forKey:kProfilePictureURL];
+        _bio = [decoder decodeObjectOfClass:[NSString class] forKey:kBio];
+        _website = [decoder decodeObjectOfClass:[NSString class] forKey:kWebsite];
+    }
+    return self;
+}
+
+- (void)encodeWithCoder:(NSCoder *)encoder
+{
+    [encoder encodeObject:_username forKey:kUsername];
+    [encoder encodeObject:_fullName forKey:kFullName];
+    [encoder encodeObject:_profilePictureURL forKey:kProfilePictureURL];
+    [encoder encodeObject:_bio forKey:kBio];
+    [encoder encodeObject:_website forKey:kWebsite];
+}
+
+#pragma mark - NSCopying
+
+- (id)copyWithZone:(NSZone *)zone
+{
+    InstagramUser *copy = [super copyWithZone:zone];
+    copy->_username = [_username copy];
+    copy->_fullName = [_fullName copy];
+    copy->_profilePictureURL = [_profilePictureURL copy];
+    copy->_bio = [_bio copy];
+    copy->_website = [_website copy];
+    return copy;
 }
 
 @end

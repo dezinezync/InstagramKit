@@ -1,5 +1,5 @@
 //
-//    Copyright (c) 2013 Shyam Bhat
+//    Copyright (c) 2015 Shyam Bhat
 //
 //    Permission is hereby granted, free of charge, to any person obtaining a copy of
 //    this software and associated documentation files (the "Software"), to deal in
@@ -22,24 +22,62 @@
 
 #import "InstagramModel.h"
 
-@interface InstagramUser : InstagramModel
+@interface InstagramUser : InstagramModel <NSCopying, NSSecureCoding, NSObject>
 
+/**
+ *  User's unique username.
+ */
 @property (readonly) NSString* username;
+
+/**
+ *  User's full name.
+ */
 @property (readonly) NSString* fullName;
+
+/**
+ *  Link to the User's profile picture.
+ */
 @property (readonly) NSURL* profilePictureURL;
+
+/**
+ *  User's short bio, if provided.
+ */
 @property (readonly) NSString* bio;
+
+/**
+ *  User's website, if provided.
+ */
 @property (readonly) NSURL* website;
-// Transient
+
+/**
+ *  Number of Media uploaded by the User.
+ *  This value is not persisted while saving the state of the User object.
+ */
 @property (readonly) NSInteger mediaCount;
+
+/**
+ *  Number of Instagram Users, this User follows.
+ *  This value is not persisted while saving the state of the User object.
+ */
 @property (readonly) NSInteger followsCount;
+
+/**
+ *  Followers count of this User.
+ *  This value is not persisted while saving the state of the User object.
+ */
 @property (readonly) NSInteger followedByCount;
 
-@property (readonly) NSArray *recentMedia;
+/**
+ *  Convenience method to update the details received for the User object.
+ *  @param info JSON dictionary
+ */
+- (void)updateDetails:(NSDictionary *)info;
 
-- (void)loadCounts;
-- (void)loadCountsWithSuccess:(void(^)(void))success failure:(void(^)(void))failure;
-
-- (void)loadRecentMedia:(NSInteger)count;
-- (void)loadRecentMedia:(NSInteger)count withSuccess:(void(^)(void))success failure:(void(^)(void))failure;
+/**
+ *  Comparing InstagramUser objects.
+ *  @param user An InstagramUser object.
+ *  @return     YES is Ids match. Else NO.
+ */
+- (BOOL)isEqualToUser:(InstagramUser *)user;
 
 @end

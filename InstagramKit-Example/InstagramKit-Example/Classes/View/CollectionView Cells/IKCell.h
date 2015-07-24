@@ -18,26 +18,10 @@
 //    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#import <UIKit/UIKit.h>
 
-#import <Foundation/Foundation.h>
+@interface IKCell : UICollectionViewCell
 
-@interface InstagramTag : NSObject <NSCopying, NSSecureCoding, NSObject>
-
-/**
- *  Tag name
- */
-@property (readonly) NSString* name;
-
-/**
- *  Number of Media tagged by this Tag.
- */
-@property (readonly) NSInteger mediaCount;
-
-/**
- *  Comparing InstagramTag objects.
- *  @param tag  An InstagramTag object.
- *  @return     YES is tag names match. Else NO.
- */
-- (BOOL)isEqualToTag:(InstagramTag *)tag;
+- (void)setImageUrl:(NSURL *)imageURL;
 
 @end

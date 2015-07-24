@@ -18,26 +18,10 @@
 //    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#ifndef InstagramKit_Example_Constants_h
+#define InstagramKit_Example_Constants_h
 
-#import <Foundation/Foundation.h>
+#endif
 
-@interface InstagramTag : NSObject <NSCopying, NSSecureCoding, NSObject>
 
-/**
- *  Tag name
- */
-@property (readonly) NSString* name;
-
-/**
- *  Number of Media tagged by this Tag.
- */
-@property (readonly) NSInteger mediaCount;
-
-/**
- *  Comparing InstagramTag objects.
- *  @param tag  An InstagramTag object.
- *  @return     YES is tag names match. Else NO.
- */
-- (BOOL)isEqualToTag:(InstagramTag *)tag;
-
-@end
+#define kInstagramUserAuthenticatedNotification @"InstagramUserAuthenticatedNotification"

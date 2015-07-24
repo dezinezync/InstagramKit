@@ -18,26 +18,31 @@
 //    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#import "InstagramComment.h"
-#import "InstagramUser.h"
+#import "InstagramLocation.h"
+#import "InstagramModel.h"
 
-@implementation InstagramComment
+@implementation InstagramLocation
 
-- (instancetype)initWithInfo:(NSDictionary *)info
+- (id)initWithInfo:(NSDictionary *)info
 {
     self = [super initWithInfo:info];
     if (self && IKNotNull(info)) {
-        _user = [[InstagramUser alloc] initWithInfo:info[kCreator]];
-        _text = [[NSString alloc] initWithString:info[kText]];
-        _createdDate = [[NSDate alloc] initWithTimeIntervalSince1970:[info[kCreatedDate] doubleValue]];
+
+        CLLocationCoordinate2D coordinates;
+        coordinates.latitude = [info[kLocationLatitude] doubleValue];
+        coordinates.longitude = [info[kLocationLongitude] doubleValue];
+        _coordinates = coordinates;
+        if (IKNotNull(info[kLocationName])) {
+            _name = [[NSString alloc] initWithString:info[kLocationName]];
+        }
     }
     return self;
 }
 
 #pragma mark - Equality
 
-- (BOOL)isEqualToComment:(InstagramComment *)comment {
-    return [super isEqualToModel:comment];
+- (BOOL)isEqualToLocation:(InstagramLocation *)location {
+    return [super isEqualToModel:location];
 }
 
 #pragma mark - NSCoding
@@ -50,28 +55,29 @@
 - (id)initWithCoder:(NSCoder *)decoder
 {
     if ((self = [self init])) {
-        _user = [decoder decodeObjectOfClass:[InstagramUser class] forKey:kCreator];
-        _text = [decoder decodeObjectOfClass:[NSString class] forKey:kText];
-        _createdDate = [decoder decodeObjectOfClass:[NSDate class] forKey:kCreatedDate];
+        CLLocationCoordinate2D coordinates;
+        coordinates.latitude = [decoder decodeDoubleForKey:kLocationLatitude];
+        coordinates.longitude = [decoder decodeDoubleForKey:kLocationLongitude];
+        _coordinates = coordinates;
+        _name = [decoder decodeObjectOfClass:[NSString class] forKey:kLocationName];
     }
     return self;
 }
 
 - (void)encodeWithCoder:(NSCoder *)encoder
 {
-    [encoder encodeObject:_user forKey:kCreator];
-    [encoder encodeObject:_text forKey:kText];
-    [encoder encodeObject:_createdDate forKey:kCreatedDate];
+    [encoder encodeDouble:_coordinates.latitude forKey:kLocationLatitude];
+    [encoder encodeDouble:_coordinates.longitude forKey:kLocationLongitude];
+    [encoder encodeObject:_name forKey:kLocationName];
 }
 
 #pragma mark - NSCopying
 
 - (id)copyWithZone:(NSZone *)zone
 {
-    InstagramComment *copy = [super copyWithZone:zone];
-    copy->_user = [_user copy];
-    copy->_text = [_text copy];
-    copy->_createdDate = [_createdDate copy];
+    InstagramLocation *copy = [super copyWithZone:zone];
+    copy->_coordinates = _coordinates;
+    copy->_name = [_name copy];
     return copy;
 }
 

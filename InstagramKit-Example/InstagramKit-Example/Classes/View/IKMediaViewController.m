@@ -19,25 +19,38 @@
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#import <Foundation/Foundation.h>
+#import "IKMediaViewController.h"
+#import "UIImageView+AFNetworking.h"
+#import "InstagramKit.h"
 
-@interface InstagramTag : NSObject <NSCopying, NSSecureCoding, NSObject>
 
-/**
- *  Tag name
- */
-@property (readonly) NSString* name;
+@interface IKMediaViewController ()
 
-/**
- *  Number of Media tagged by this Tag.
- */
-@property (readonly) NSInteger mediaCount;
+@property (weak, nonatomic) IBOutlet UIImageView *imageView;
+@property (weak, nonatomic) IBOutlet UILabel *captionLabel;
+@property (nonatomic, strong) InstagramMedia *media;
 
-/**
- *  Comparing InstagramTag objects.
- *  @param tag  An InstagramTag object.
- *  @return     YES is tag names match. Else NO.
- */
-- (BOOL)isEqualToTag:(InstagramTag *)tag;
+@end
+
+
+@implementation IKMediaViewController
+
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    [self populateViews];
+}
+
+
+- (void)populateViews
+{
+    [self setTitle:[NSString stringWithFormat:@"@%@",self.media.user.username]];
+    [self.imageView setImageWithURL:self.media.thumbnailURL];
+    [self.imageView setImageWithURL:self.media.standardResolutionImageURL];
+    [self.captionLabel setText:self.media.caption.text];
+}
+
+
 
 @end
